@@ -57,6 +57,8 @@ const h=(t,a,...c)=>{const e=document.createElement(t);for(const k in a||{}){if(
 let db,uid,code='',S=null,off=null,reveal=false,cfg={};
 try{uid=localStorage.getItem('mv-uid');if(!uid){uid=Math.random().toString(36).slice(2,10)+Date.now().toString(36);localStorage.setItem('mv-uid',uid)}}catch(e){uid=uid||Math.random().toString(36).slice(2,12)}
 
+const PH={night:'🌙 밤',day:'☀️ 낮 · 토론/지목',trial:'⚖️ 최후 변론',verdict:'⚖️ 찬반 투표',end:'종료'};
+const rnd=a=>a[Math.floor(Math.random()*a.length)];
 const RL=()=>S.roles||{},PL=()=>S.players||{},DD=()=>S.dead||{},LG=()=>Object.values(S.log||{});
 const nm=i=>(PL()[i]||{}).name||'(알 수 없음)',alive=i=>!DD()[i];
 const ups=o=>update(ref(db,'rooms/'+code),o);
@@ -139,15 +141,18 @@ function hostView(){
     const n=ids.length,[m,p,d]=cv(n),ok=n>=4&&m>=1&&m+p+d<n&&m<n-m;
     out.push(h('button',{class:'btn'+(S.locked?' sel':''),onclick:()=>ups({locked:S.locked?null:true})},S.locked?'🔒 입장 잠김 (눌러서 해제)':'🔓 입장 허용 중 (눌러서 잠그기)'),h('div',{class:'card'},h('h2',{},`참가자 ${n}명`),ids.map(i=>h('div',{class:'row'},nm(i),h('button',{class:'mini',onclick:()=>kick(i)},'내보내기')))),
       h('div',{class:'card'},h('h2',{},'직업 구성'),step('마피아','m',m),step('경찰','p',p),step('의사','d',d),h('div',{class:'mut'},`시민 ${Math.max(0,n-m-p-d)}명 · 인원에 맞춰 자동 추천값이에요`)),
-      h('button',{class:'btn pri',disabled:ok?null:'',onclick:start},ok?'게임 시작':'4명 이상, 직업 수를 맞춰주세요'));
+      h('div',{class:'card'},h('h2',{},'처형 시 정체 공개'),[['M','마피아 여부만 공개'],['F','직업 전체 공개'],['N','공개 안 함']].map(([k,l])=>h('button',{class:'btn'+((cfg.rv||'M')===k?' sel':''),onclick:()=>{cfg.rv=k;render()}},l))),h('button',{class:'btn',onclick:addBot},'🤖 테스트용 가상 참가자 추가 (밤·투표를 자동으로 해요)'),h('button',{class:'btn pri',disabled:ok?null:'',onclick:start},ok?'게임 시작':'4명 이상, 직업 수를 맞춰주세요'));
   }else{
     const night=ph==='night';
-    out.push(h('div',{class:'card'},h('h2',{},`교사 화면 · ${S.day}일차 ${ph==='end'?'종료':night?'🌙 밤':'☀️ 낮'}`),
+    out.push(h('div',{class:'card'},h('h2',{},`교사 화면 · ${S.day}일차 ${PH[ph]}`),
       Object.keys(RL()).map(i=>{const pl=PL()[i]||{},a=night?pl.act:pl.vote;
         return h('div',{class:'row'},h('span',{class:alive(i)?'':'dead'},nm(i)),h('span',{},ROLE[RL()[i]]+(alive(i)?(a&&ph!=='end'?' ✓':''):` 👻${pl.side?(pl.side==='M'?'마':'시'):''}`)+' ',ph!=='end'?h('button',{class:'mini',onclick:()=>toggleDead(i)},alive(i)?'제외':'복귀'):null,' ',ph!=='end'?h('button',{class:'mini',onclick:()=>kick(i)},'퇴장'):null))}),
       h('div',{class:'mut'},'✓ = 선택 완료 · 👻 옆 글자는 유령이 고른 편(마/시)')));
     if(ph==='night')out.push(h('button',{class:'btn pri',onclick:endNight},'☀️ 아침으로 (밤 결과 공개)'));
-    if(ph==='day')out.push(h('button',{class:'btn pri',onclick:endDay},'🌙 투표 마감하고 밤으로'));
+    if(ph==='trial'||ph==='verdict')out.push(trialCard());
+    if(ph==='day')out.push(h('button',{class:'btn pri',onclick:endDay},'🗳️ 투표 마감 → 결과 보기'));
+    if(ph==='trial')out.push(h('button',{class:'btn pri',onclick:startVerdict},'⚖️ 변론 끝 → 찬반 투표 시작'));
+    if(ph==='verdict')out.push(h('button',{class:'btn pri',onclick:endVerdict},'🌙 찬반 마감 → 결과 반영하고 밤으로'));
     if(ph==='end')out.push(endCard(),h('button',{class:'btn pri',onclick:reset},'새 게임 (대기실로)'));
     out.push(logCard());
     if(ph!=='end')out.push(h('button',{class:'btn',onclick:()=>confirm('게임을 중단하고 대기실로 돌아갈까요?')&&reset()},'게임 중단 (대기실로)'));
@@ -172,8 +177,9 @@ function stuView(){
   const out=[],al=alive(uid);
   if(ph==='end'){out.push(endCard(),logCard());return out}
   const card=h('div',{class:'role',onpointerdown:e=>{reveal=true;render()},oncontextmenu:e=>e.preventDefault()},reveal?`${ROLE[r]}${al?'':' (유령)'}`:'꾹 눌러서 내 직업 보기');
-  out.push(h('div',{class:'card'},h('div',{class:'mut'},`${S.day}일차 · ${ph==='night'?'🌙 밤':'☀️ 낮'}`),card,reveal?h('div',{class:'mut'},DESC[r]):null));
-  out.push(al?(ph==='night'?nightCard(me,r):dayCard(me)):ghostCard(me,ph==='night'));
+  out.push(h('div',{class:'card'},h('div',{class:'mut'},`${S.day}일차 · ${PH[ph]}`),card,reveal?h('div',{class:'mut'},DESC[r]):null));
+  if(ph==='trial'||ph==='verdict')out.push(trialCard());
+  out.push(al?(ph==='night'?nightCard(me,r):ph==='day'?dayCard(me):verdictCard(me)):ghostCard(me,ph==='night'));
   out.push(logCard());
   return out;
 }
@@ -198,7 +204,7 @@ function nightCard(me,r){
   return c;
 }
 function dayCard(me){
-  const c=h('div',{class:'card'},h('h2',{},'토론 후 투표하세요'));
+  const c=h('div',{class:'card'},h('h2',{},'토론 후 처형 후보를 지목하세요'));
   if(S.phase==='day'&&me.dos&&RL()[uid]==='P')c.append(h('div',{class:'mut'},'조사 기록: '+Object.values(me.dos).map(i=>`${nm(i)} ${RL()[i]==='M'?'마피아':'아님'}`).join(', ')));
   c.append(...pick(others(),me.vote,i=>act('vote',i)));
   return c;
@@ -224,13 +230,13 @@ async function start(){
   const ids=Object.keys(PL()).sort(()=>Math.random()-.5),n=ids.length,c=cv(n),roles={};let k=0;
   ['M','P','D'].forEach((r,ri)=>{for(let j=0;j<c[ri];j++)roles[ids[k++]]=r});
   while(k<n)roles[ids[k++]]='C';
-  const o={phase:'night',day:1,roles,dead:null,winner:null,log:['1일차 밤이 되었습니다. 첫날 밤에는 아무도 희생되지 않아요.']};
+  const o={phase:'night',day:1,roles,reveal:cfg.rv||'M',dead:null,winner:null,log:['1일차 밤이 되었습니다. 첫날 밤에는 아무도 희생되지 않아요.']};
   ids.forEach(i=>['act','vote','peek','dos','side'].forEach(f=>o[`players/${i}/${f}`]=null));
   await ups(o);
 }
 async function endNight(){
   const dead={...DD()},kills=new Set(),saves=new Set(),o={};
-  Object.keys(RL()).filter(alive).forEach(i=>{const a=(PL()[i]||{}).act;if(!a)return;
+  const PB=PLB('night');Object.keys(RL()).filter(alive).forEach(i=>{const a=(PB[i]||{}).act;if(!a)return;
     if(RL()[i]==='M')kills.add(a);if(RL()[i]==='D')saves.add(a);if(RL()[i]==='P')o[`players/${i}/dos/${S.day}`]=a});
   const died=[];
   if(S.day>1)kills.forEach(t=>{if(!dead[t]&&!saves.has(t)){dead[t]=true;died.push(t)}});
@@ -239,14 +245,52 @@ async function endNight(){
   Object.keys(PL()).forEach(i=>o[`players/${i}/vote`]=null);
   await ups({...o,dead:Object.keys(dead).length?dead:null,log,phase:w?'end':'day',winner:w});
 }
+const clr=fs=>{const o={};Object.keys(PL()).forEach(i=>fs.forEach(f=>o[`players/${i}/${f}`]=null));return o};
+function PLB(kind){
+  const P0=JSON.parse(JSON.stringify(PL())),al=Object.keys(RL()).filter(alive);
+  Object.keys(P0).filter(i=>P0[i].bot&&alive(i)).forEach(i=>{
+    const r=RL()[i],o=al.filter(x=>x!==i);
+    if(kind==='night'){if(!P0[i].act){if(r==='M')P0[i].act=rnd(o.filter(x=>RL()[x]!=='M'));else if(r==='P')P0[i].act=rnd(o);else if(r==='D')P0[i].act=rnd(al)}}
+    else if(kind==='day'){if(!P0[i].vote)P0[i].vote=rnd(o)}
+    else if(!P0[i].vote)P0[i].vote=Math.random()<.6?'Y':'N';
+  });
+  return P0;
+}
+async function addBot(){
+  const n=Object.values(PL()).filter(p=>p.bot).length+1,k='bot'+Date.now().toString(36);
+  await ups({[`players/${k}/name`]:`봇${n}`,[`players/${k}/bot`]:true});
+}
+function trialCard(){
+  const t=S.trial||{},c=t.c||{};
+  return h('div',{class:'card'},h('h2',{},S.phase==='trial'?`⚖️ ${nm(t.t)}님의 최후 변론`:`⚖️ ${nm(t.t)}님 처형 찬반 투표`),
+    h('div',{class:'mut'},'지목 득표 결과'),Object.keys(c).sort((a,b)=>c[b]-c[a]).map(i=>h('div',{class:'row'},nm(i),`${c[i]}표`)));
+}
+function verdictCard(me){
+  const t=(S.trial||{}).t,c=h('div',{class:'card'});
+  if(S.phase==='trial'){c.append(h('p',{},uid===t?'당신의 최후 변론 시간이에요. 억울함을 호소하세요!':'변론을 듣고 있어요. 곧 찬반 투표가 시작돼요.'));return c}
+  if(uid===t){c.append(h('p',{},'당신에 대한 찬반 투표 중이에요. 결과를 기다려요…'));return c}
+  c.append(h('h2',{},`${nm(t)}님을 처형할까요?`),h('button',{class:'btn'+(me.vote==='Y'?' sel':''),onclick:()=>act('vote','Y')},'👍 찬성 (처형)'),h('button',{class:'btn'+(me.vote==='N'?' sel':''),onclick:()=>act('vote','N')},'👎 반대 (살려줌)'));
+  return c;
+}
 async function endDay(){
-  const cnt={};Object.keys(RL()).filter(alive).forEach(i=>{const v=(PL()[i]||{}).vote;if(v&&alive(v))cnt[v]=(cnt[v]||0)+1});
-  const e=Object.entries(cnt).sort((a,b)=>b[1]-a[1]),dead={...DD()};let t;
-  if(!e.length||(e[1]&&e[1][1]===e[0][1]))t='동점이거나 투표가 없어 아무도 처형되지 않았습니다.';
-  else{dead[e[0][0]]=true;t=`${nm(e[0][0])}님이 처형되었습니다. 정체는 ${ROLE[RL()[e[0][0]]]}!`}
-  const w=win(dead),log=[...LG(),t];log.push(w?'게임 종료!':`${S.day+1}일차 밤이 되었습니다.`);
-  const o={};Object.keys(PL()).forEach(i=>['act','vote','peek'].forEach(f=>o[`players/${i}/${f}`]=null));
-  await ups({...o,dead,log,phase:w?'end':'night',day:w?S.day:S.day+1,winner:w});
+  const PB=PLB('day'),cnt={};
+  Object.keys(RL()).filter(alive).forEach(i=>{const v=(PB[i]||{}).vote;if(v&&alive(v))cnt[v]=(cnt[v]||0)+1});
+  const e=Object.entries(cnt).sort((a,b)=>b[1]-a[1]);
+  if(!e.length||(e[1]&&e[1][1]===e[0][1])){
+    await ups({...clr(['act','vote','peek']),log:[...LG(),'동점이거나 투표가 없어 최후의 변론 없이 밤이 됩니다.',`${S.day+1}일차 밤이 되었습니다.`],phase:'night',day:S.day+1,trial:null});return;
+  }
+  const t=e[0][0];
+  await ups({...clr(['vote']),phase:'trial',trial:{t,c:cnt},log:[...LG(),`${nm(t)}님이 ${e[0][1]}표로 최다 득표했습니다. 최후의 변론을 들어봅니다.`]});
+}
+const startVerdict=()=>ups({phase:'verdict'});
+async function endVerdict(){
+  const PB=PLB('verdict'),t=S.trial.t;let y=0,n=0;
+  Object.keys(RL()).filter(i=>alive(i)&&i!==t).forEach(i=>{const v=(PB[i]||{}).vote;if(v==='Y')y++;if(v==='N')n++});
+  const dead={...DD()};let m;
+  if(y>n&&alive(t)){dead[t]=true;const rv=S.reveal||'M',r=RL()[t];m=`찬성 ${y} : 반대 ${n} — ${nm(t)}님이 처형되었습니다.`+(rv==='F'?` 정체는 ${ROLE[r]}!`:rv==='M'?(r==='M'?' 마피아였습니다!':' 마피아가 아니었습니다.'):'')}
+  else m=`찬성 ${y} : 반대 ${n} — ${nm(t)}님은 살아남았습니다.`;
+  const w=win(dead),log=[...LG(),m,w?'게임 종료!':`${S.day+1}일차 밤이 되었습니다.`];
+  await ups({...clr(['act','vote','peek']),dead,log,phase:w?'end':'night',day:w?S.day:S.day+1,winner:w,trial:null});
 }
 async function kick(i){
   if(!confirm(`${nm(i)}님을 내보낼까요?`))return;
@@ -257,7 +301,7 @@ async function toggleDead(i){
   await ups({dead:Object.keys(d).length?d:null});
 }
 async function reset(){
-  const o={phase:'lobby',day:0,roles:null,dead:null,winner:null,log:null};
+  const o={phase:'lobby',day:0,roles:null,reveal:null,dead:null,winner:null,log:null,trial:null};
   Object.keys(PL()).forEach(i=>['act','vote','peek','dos','side'].forEach(f=>o[`players/${i}/${f}`]=null));
   cfg={};await ups(o);
 }
