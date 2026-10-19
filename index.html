@@ -30,10 +30,10 @@ body.night .btn.pri{color:#1b1a33}
 .btn:disabled{opacity:.45}
 input{width:100%;padding:13px;margin:6px 0;font:inherit;font-size:16px;border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--fg)}
 .code{font-size:36px;font-weight:800;letter-spacing:8px;text-align:center;color:var(--ac)}
-.row{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd)}
+.row{flex-wrap:wrap;align-items:center;display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd)}
 .row:last-child{border:0}
 .dead{text-decoration:line-through;color:var(--mut)}
-.role{font-size:26px;font-weight:800;text-align:center;padding:18px 0;border-radius:12px;border:2px dashed var(--bd);user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.role{font-size:26px;font-weight:800;text-align:center;padding:18px 0;border-radius:12px;border:2px dashed var(--bd);user-select:none;-webkit-user-select:none;touch-action:manipulation;-webkit-touch-callout:none}
 .step{display:flex;align-items:center;justify-content:space-between;padding:4px 0}
 .step button{width:44px;height:44px;font-size:22px;border-radius:12px;border:1px solid var(--bd);background:var(--card);color:var(--fg)}
 .mini{padding:4px 10px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--fg);font:inherit;font-size:13px}
@@ -53,7 +53,7 @@ const FB={apiKey:"AIzaSyBZd8ut2vxELmfjlZJeMism6zcv7CGrV0g",authDomain:"mafia-6a9
 const ROLE={M:'마피아',P:'경찰',D:'의사',C:'시민'};
 const DESC={M:'밤마다 제거할 사람을 고르세요. 동료와 상의할 수 없어요.',P:'밤마다 한 명을 조사해 마피아인지 알아내요.',D:'밤마다 한 명을 지켜요. 자신도 고를 수 있어요.',C:'낮 토론과 투표로 마피아를 찾아내요.'};
 const app=document.getElementById('app'),sky=document.getElementById('sky');
-const h=(t,a,...c)=>{const e=document.createElement(t);for(const k in a||{}){if(a[k]==null)continue;k==='onclick'?e.onclick=a[k]:k==='class'?e.className=a[k]:e.setAttribute(k,a[k])}e.append(...c.flat().filter(x=>x!=null&&x!==false));return e};
+const h=(t,a,...c)=>{const e=document.createElement(t);for(const k in a||{}){if(a[k]==null)continue;k.startsWith('on')?e[k]=a[k]:k==='class'?e.className=a[k]:e.setAttribute(k,a[k])}e.append(...c.flat().filter(x=>x!=null&&x!==false));return e};
 let db,uid,code='',S=null,off=null,reveal=false,cfg={};
 try{uid=localStorage.getItem('mv-uid');if(!uid){uid=Math.random().toString(36).slice(2,10)+Date.now().toString(36);localStorage.setItem('mv-uid',uid)}}catch(e){uid=uid||Math.random().toString(36).slice(2,12)}
 
@@ -63,12 +63,17 @@ const RL=()=>S.roles||{},PL=()=>S.players||{},DD=()=>S.dead||{},LG=()=>Object.va
 const nm=i=>(PL()[i]||{}).name||'(알 수 없음)',alive=i=>!DD()[i];
 const ups=o=>update(ref(db,'rooms/'+code),o);
 const act=(k,v)=>ups({[`players/${uid}/${k}`]:v});
-const mk=()=>Array.from({length:4},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*32)]).join('');
+const mk=()=>String(Math.floor(Math.random()*10000)).padStart(4,'0');
 const def=n=>{const p=n>=14?2:1;return [Math.max(1,Math.round(n/4.2)),p,p]};
 const cv=n=>{const d=def(n);return [cfg.m??d[0],cfg.p??d[1],cfg.d??d[2]]};
 
-window.addEventListener('pointerup',()=>{if(reveal){reveal=false;render()}});
-window.addEventListener('pointercancel',()=>{if(reveal){reveal=false;render()}});
+const paintRole=()=>{
+  const c=document.getElementById('rolecard'),d=document.getElementById('roledesc');if(!c||!S||!RL()[uid])return;
+  const r=RL()[uid];c.textContent=reveal?`${ROLE[r]}${alive(uid)?'':' (유령)'}`:'꾹 눌러서 내 직업 보기';
+  if(d)d.textContent=reveal?DESC[r]:'';
+};
+const unhold=()=>{if(reveal){reveal=false;paintRole()}};
+window.addEventListener('pointerup',unhold);window.addEventListener('pointercancel',unhold);window.addEventListener('blur',unhold);
 
 if(!FB.databaseURL){app.replaceChildren(h('h1',{},'마피아 마을'),h('div',{class:'card'},'파일 위쪽의 FB 설정값이 비어 있어요. Firebase 설정을 붙여 넣은 뒤 다시 올려주세요.'))}
 else{db=getDatabase(initializeApp(FB));home()}
@@ -83,7 +88,7 @@ async function teacherAuth(pw){
 function home(){
   if(off){off();off=null}S=null;code='';sky.className='day';document.body.className='';
   let saved='';try{saved=localStorage.getItem('mv-name')||''}catch(e){}
-  const n=h('input',{placeholder:'내 이름',maxlength:10,value:saved}),c=h('input',{placeholder:'방 코드 4자리',maxlength:4}),er=h('div',{class:'err'});
+  const n=h('input',{placeholder:'내 이름',maxlength:10,value:saved}),c=h('input',{placeholder:'방 코드 4자리 숫자',maxlength:4,inputmode:'numeric'}),er=h('div',{class:'err'});
   const go=async create=>{
     const name=n.value.trim(),cc=create?mk():c.value.trim().toUpperCase();
     if(!create&&!name){er.textContent='이름을 입력하세요';return}
@@ -91,7 +96,7 @@ function home(){
     try{localStorage.setItem('mv-name',name)}catch(e){}
     try{await enter(cc,name,create)}catch(e){er.textContent=e.message||'연결에 실패했어요. 인터넷을 확인하세요'}
   };
-  const tp=h('input',{type:'password',placeholder:'교사용 비밀번호'}),tc=h('input',{placeholder:'이어서 열 방 코드 (선택)',maxlength:4});
+  const tp=h('input',{type:'password',placeholder:'교사용 비밀번호'}),tc=h('input',{placeholder:'이어서 열 방 코드 (숫자 4자리)',maxlength:4,inputmode:'numeric'});
   const tgo=async create=>{
     if(!tp.value){er.textContent='비밀번호를 입력하세요';return}
     try{
@@ -108,7 +113,11 @@ function home(){
 }
 async function enter(cc,name,create,takeover){
   const rr=ref(db,'rooms/'+cc);
-  if(create)await set(rr,{host:uid,phase:'lobby',day:0});
+  if(create){
+    const ex=await get(rr);
+    if(ex.exists()&&Date.now()-(ex.val().created||0)<21600000)throw new Error('코드가 겹쳤어요. 한 번 더 눌러주세요');
+    await set(rr,{host:uid,phase:'lobby',day:0,created:Date.now()});
+  }
   else{
     const s=await get(rr);if(!s.exists())throw new Error('그런 방이 없어요');
     const v=s.val();
@@ -146,8 +155,8 @@ function hostView(){
     const night=ph==='night';
     out.push(h('div',{class:'card'},h('h2',{},`교사 화면 · ${S.day}일차 ${PH[ph]}`),
       Object.keys(RL()).map(i=>{const pl=PL()[i]||{},a=night?pl.act:pl.vote;
-        return h('div',{class:'row'},h('span',{class:alive(i)?'':'dead'},nm(i)),h('span',{},ROLE[RL()[i]]+(alive(i)?(a&&ph!=='end'?' ✓':''):` 👻${pl.side?(pl.side==='M'?'마':'시'):''}`)+' ',ph!=='end'?h('button',{class:'mini',onclick:()=>toggleDead(i)},alive(i)?'제외':'복귀'):null,' ',ph!=='end'?h('button',{class:'mini',onclick:()=>kick(i)},'퇴장'):null))}),
-      h('div',{class:'mut'},'✓ = 선택 완료 · 👻 옆 글자는 유령이 고른 편(마/시)')));
+        return h('div',{class:'row'},h('span',{class:alive(i)?'':'dead'},nm(i)),h('span',{},ROLE[RL()[i]]+(alive(i)?(a&&ph!=='end'?' ✓':''):` 👻${pl.side?(pl.side==='M'?' 마피아편':' 시민편'):''}`)+' ',ph!=='end'?h('button',{class:'mini',onclick:()=>toggleDead(i)},alive(i)?'제외':'복귀'):null,' ',ph!=='end'?h('button',{class:'mini',onclick:()=>kick(i)},'퇴장'):null))}),
+      h('div',{class:'mut'},'✓ = 선택 완료 · 👻 옆은 유령이 고른 편 (비어 있으면 아직 안 고름)')));
     if(ph==='night')out.push(h('button',{class:'btn pri',onclick:endNight},'☀️ 아침으로 (밤 결과 공개)'));
     if(ph==='trial'||ph==='verdict')out.push(trialCard());
     if(ph==='day')out.push(h('button',{class:'btn pri',onclick:endDay},'🗳️ 투표 마감 → 결과 보기'));
@@ -176,8 +185,8 @@ function stuView(){
   if(!r)return [h('div',{class:'card'},'다음 판을 기다려주세요.')];
   const out=[],al=alive(uid);
   if(ph==='end'){out.push(endCard(),logCard());return out}
-  const card=h('div',{class:'role',onpointerdown:e=>{reveal=true;render()},oncontextmenu:e=>e.preventDefault()},reveal?`${ROLE[r]}${al?'':' (유령)'}`:'꾹 눌러서 내 직업 보기');
-  out.push(h('div',{class:'card'},h('div',{class:'mut'},`${S.day}일차 · ${PH[ph]}`),card,reveal?h('div',{class:'mut'},DESC[r]):null));
+  const card=h('div',{id:'rolecard',class:'role',onpointerdown:e=>{e.preventDefault();reveal=true;paintRole()},oncontextmenu:e=>e.preventDefault()},reveal?`${ROLE[r]}${al?'':' (유령)'}`:'꾹 눌러서 내 직업 보기');
+  out.push(h('div',{class:'card'},h('div',{class:'mut'},`${S.day}일차 · ${PH[ph]}`),card,h('div',{id:'roledesc',class:'mut'},reveal?DESC[r]:'')));
   if(ph==='trial'||ph==='verdict')out.push(trialCard());
   out.push(al?(ph==='night'?nightCard(me,r):ph==='day'?dayCard(me):verdictCard(me)):ghostCard(me,ph==='night'));
   out.push(logCard());
@@ -243,8 +252,10 @@ async function endNight(){
   const t=S.day===1?'첫날 밤은 평화로웠습니다.':died.length?`밤사이 ${died.map(nm).join(', ')}님이 희생되었습니다.`:kills.size?'마피아가 공격했지만 아무도 희생되지 않았습니다!':'조용한 밤이었습니다.';
   const w=win(dead),log=[...LG(),t];if(w)log.push('게임 종료!');
   Object.keys(PL()).forEach(i=>o[`players/${i}/vote`]=null);
+  died.forEach(i=>bs(o,i));
   await ups({...o,dead:Object.keys(dead).length?dead:null,log,phase:w?'end':'day',winner:w});
 }
+const bs=(o,i)=>{const q=PL()[i]||{};if(q.bot&&!q.side)o[`players/${i}/side`]=Math.random()<.5?'M':'C'};
 const clr=fs=>{const o={};Object.keys(PL()).forEach(i=>fs.forEach(f=>o[`players/${i}/${f}`]=null));return o};
 function PLB(kind){
   const P0=JSON.parse(JSON.stringify(PL())),al=Object.keys(RL()).filter(alive);
@@ -290,7 +301,8 @@ async function endVerdict(){
   if(y>n&&alive(t)){dead[t]=true;const rv=S.reveal||'M',r=RL()[t];m=`찬성 ${y} : 반대 ${n} — ${nm(t)}님이 처형되었습니다.`+(rv==='F'?` 정체는 ${ROLE[r]}!`:rv==='M'?(r==='M'?' 마피아였습니다!':' 마피아가 아니었습니다.'):'')}
   else m=`찬성 ${y} : 반대 ${n} — ${nm(t)}님은 살아남았습니다.`;
   const w=win(dead),log=[...LG(),m,w?'게임 종료!':`${S.day+1}일차 밤이 되었습니다.`];
-  await ups({...clr(['act','vote','peek']),dead,log,phase:w?'end':'night',day:w?S.day:S.day+1,winner:w,trial:null});
+  const o2=clr(['act','vote','peek']);if(dead[t]&&!DD()[t])bs(o2,t);
+  await ups({...o2,dead,log,phase:w?'end':'night',day:w?S.day:S.day+1,winner:w,trial:null});
 }
 async function kick(i){
   if(!confirm(`${nm(i)}님을 내보낼까요?`))return;
