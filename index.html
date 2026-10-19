@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>마피아 마을</title>
+<style>
+:root{--fg:#1d2433;--card:rgba(255,255,255,.9);--bd:rgba(0,0,0,.14);--ac:#d94f4f;--mut:#566079}
+body.night{--fg:#eceaff;--card:rgba(22,24,62,.88);--bd:rgba(255,255,255,.2);--ac:#f4c95d;--mut:#aab0d8}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{color:var(--fg);font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;line-height:1.5;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px);transition:color 1s}
+#sky{position:fixed;inset:0;z-index:-1;overflow:hidden;transition:background 1.8s}
+#sky.day{background:linear-gradient(#7cc8ff,#ffe8c8 88%)}
+#sky.night{background:linear-gradient(#0b0e2e,#2a2358 92%)}
+.orb{position:absolute;left:50%;top:56px;width:84px;height:84px;margin-left:-42px;border-radius:50%;transition:transform 2.4s cubic-bezier(.25,.8,.25,1)}
+#sun{background:radial-gradient(circle,#fff7cf,#ffc83d 70%);box-shadow:0 0 70px 20px #ffd76a99}
+#moon{background:#f6f3dc;box-shadow:inset -18px -6px 0 #d8d3b4,0 0 50px #f6f3dc66}
+#sky.day #moon,#sky.night #sun{transform:translateY(440px)}
+#stars{position:absolute;inset:0;opacity:0;transition:opacity 2s;animation:tw 3s infinite alternate;background-image:radial-gradient(2px 2px at 20% 30%,#fff,transparent),radial-gradient(2px 2px at 72% 18%,#fff,transparent),radial-gradient(1.5px 1.5px at 42% 62%,#fff,transparent),radial-gradient(2px 2px at 86% 55%,#fff,transparent),radial-gradient(1.5px 1.5px at 10% 78%,#fff,transparent)}
+#sky.night #stars{opacity:1}
+@keyframes tw{to{filter:brightness(.45)}}
+@media (prefers-reduced-motion:reduce){.orb,#sky,#stars{transition:none;animation:none}}
+#app{max-width:520px;margin:0 auto;padding:160px 14px 32px}
+h1{font-size:28px;margin:0 0 4px}h2{font-size:18px;margin:0 0 8px}
+.mut{color:var(--mut);font-size:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:14px;margin:12px 0;backdrop-filter:blur(6px)}
+.btn{display:block;width:100%;padding:13px;margin:6px 0;border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--fg);font:inherit;font-size:16px;text-align:left}
+.btn.pri{background:var(--ac);border-color:var(--ac);color:#fff;text-align:center;font-weight:700}
+body.night .btn.pri{color:#1b1a33}
+.btn.sel{outline:3px solid var(--ac)}
+.btn:disabled{opacity:.45}
+input{width:100%;padding:13px;margin:6px 0;font:inherit;font-size:16px;border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--fg)}
+.code{font-size:36px;font-weight:800;letter-spacing:8px;text-align:center;color:var(--ac)}
+.row{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd)}
+.row:last-child{border:0}
+.dead{text-decoration:line-through;color:var(--mut)}
+.role{font-size:26px;font-weight:800;text-align:center;padding:18px 0;border-radius:12px;border:2px dashed var(--bd);user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.step{display:flex;align-items:center;justify-content:space-between;padding:4px 0}
+.step button{width:44px;height:44px;font-size:22px;border-radius:12px;border:1px solid var(--bd);background:var(--card);color:var(--fg)}
+.mini{padding:4px 10px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--fg);font:inherit;font-size:13px}
+summary{font-weight:700;font-size:16px;padding:4px 0}
+.err{color:var(--ac);min-height:22px;font-size:14px}
+</style></head>
+<body>
+<div id="sky" class="day"><div id="stars"></div><div id="sun" class="orb"></div><div id="moon" class="orb"></div></div>
+<div id="app"></div>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getDatabase,ref,onValue,set,update,get} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+// ▼ Firebase 콘솔에서 복사한 설정값을 여기에 붙여 넣으세요 (databaseURL 필수)
+const FB={apiKey:"AIzaSyBZd8ut2vxELmfjlZJeMism6zcv7CGrV0g",authDomain:"mafia-6a946.firebaseapp.com",databaseURL:"https://mafia-6a946-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"mafia-6a946",appId:"1:699764847443:web:bb914ab03a6b6d484be7a6"};
+
+const ROLE={M:'마피아',P:'경찰',D:'의사',C:'시민'};
+const DESC={M:'밤마다 제거할 사람을 고르세요. 동료와 상의할 수 없어요.',P:'밤마다 한 명을 조사해 마피아인지 알아내요.',D:'밤마다 한 명을 지켜요. 자신도 고를 수 있어요.',C:'낮 토론과 투표로 마피아를 찾아내요.'};
+const app=document.getElementById('app'),sky=document.getElementById('sky');
+const h=(t,a,...c)=>{const e=document.createElement(t);for(const k in a||{}){k==='onclick'?e.onclick=a[k]:k==='class'?e.className=a[k]:e.setAttribute(k,a[k])}e.append(...c.flat().filter(x=>x!=null&&x!==false));return e};
+let db,uid,code='',S=null,off=null,reveal=false,cfg={};
+try{uid=localStorage.getItem('mv-uid');if(!uid){uid=Math.random().toString(36).slice(2,10)+Date.now().toString(36);localStorage.setItem('mv-uid',uid)}}catch(e){uid=uid||Math.random().toString(36).slice(2,12)}
+
+const RL=()=>S.roles||{},PL=()=>S.players||{},DD=()=>S.dead||{},LG=()=>Object.values(S.log||{});
+const nm=i=>(PL()[i]||{}).name||'(알 수 없음)',alive=i=>!DD()[i];
+const ups=o=>update(ref(db,'rooms/'+code),o);
+const act=(k,v)=>ups({[`players/${uid}/${k}`]:v});
+const mk=()=>Array.from({length:4},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*32)]).join('');
+const def=n=>{const p=n>=14?2:1;return [Math.max(1,Math.round(n/4.2)),p,p]};
+const cv=n=>{const d=def(n);return [cfg.m??d[0],cfg.p??d[1],cfg.d??d[2]]};
+
+window.addEventListener('pointerup',()=>{if(reveal){reveal=false;render()}});
+window.addEventListener('pointercancel',()=>{if(reveal){reveal=false;render()}});
+
+if(!FB.databaseURL){app.replaceChildren(h('h1',{},'마피아 마을'),h('div',{class:'card'},'파일 위쪽의 FB 설정값이 비어 있어요. Firebase 설정을 붙여 넣은 뒤 다시 올려주세요.'))}
+else{db=getDatabase(initializeApp(FB));home()}
+
+const sha=async t=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('mv:'+t)))].map(b=>b.toString(16).padStart(2,'0')).join('');
+async function teacherAuth(pw){
+  if(!crypto||!crypto.subtle)throw new Error('https 주소(GitHub Pages)에서 열어야 해요');
+  const r=ref(db,'admin/pwHash'),s=await get(r),hh=await sha(pw);
+  if(!s.exists()){await set(r,hh);return true}
+  return s.val()===hh;
+}
+function home(){
+  if(off){off();off=null}S=null;code='';sky.className='day';document.body.className='';
+  let saved='';try{saved=localStorage.getItem('mv-name')||''}catch(e){}
+  const n=h('input',{placeholder:'내 이름',maxlength:10,value:saved}),c=h('input',{placeholder:'방 코드 4자리',maxlength:4}),er=h('div',{class:'err'});
+  const go=async create=>{
+    const name=n.value.trim(),cc=create?mk():c.value.trim().toUpperCase();
+    if(!create&&!name){er.textContent='이름을 입력하세요';return}
+    if(!cc){er.textContent='방 코드를 입력하세요';return}
+    try{localStorage.setItem('mv-name',name)}catch(e){}
+    try{await enter(cc,name,create)}catch(e){er.textContent=e.message||'연결에 실패했어요. 인터넷을 확인하세요'}
+  };
+  const tp=h('input',{type:'password',placeholder:'교사용 비밀번호'}),tc=h('input',{placeholder:'이어서 열 방 코드 (선택)',maxlength:4});
+  const tgo=async create=>{
+    if(!tp.value){er.textContent='비밀번호를 입력하세요';return}
+    try{
+      if(!await teacherAuth(tp.value)){er.textContent='비밀번호가 틀렸어요';return}
+      if(create)await enter(mk(),'',true,false);else await enter(tc.value.trim().toUpperCase(),'',false,true);
+    }catch(e){er.textContent=e.message||'연결에 실패했어요'}
+  };
+  const teacherBox=h('details',{class:'card'},h('summary',{},'교사용 (진행자)'),tp,tc,
+    h('button',{class:'btn pri',onclick:()=>tgo(true)},'새 방 만들기'),h('button',{class:'btn',onclick:()=>tgo(false)},'내 방 다시 열기 (위에 방 코드 입력)'),
+    h('p',{class:'mut'},'처음 입력한 비밀번호가 교사용 비밀번호로 저장돼요. 학생에게 주소를 알리기 전에 먼저 설정하세요.'));
+  app.replaceChildren(h('h1',{},'🌙 마피아 마을'),h('p',{class:'mut'},'각자 폰으로 접속해서 즐기는 마피아 게임'),
+    h('div',{class:'card'},h('h2',{},'학생'),n,c,h('button',{class:'btn pri',onclick:()=>go(false)},'방 입장')),
+    er,teacherBox);
+}
+async function enter(cc,name,create,takeover){
+  const rr=ref(db,'rooms/'+cc);
+  if(create)await set(rr,{host:uid,phase:'lobby',day:0});
+  else{
+    const s=await get(rr);if(!s.exists())throw new Error('그런 방이 없어요');
+    const v=s.val();
+    if(takeover)await update(rr,{host:uid});
+    else if(v.host!==uid){
+      const mine=(v.players||{})[uid];
+      if(!mine&&v.locked)throw new Error('교사가 입장을 잠갔어요');
+      if(!mine&&v.phase!=='lobby')throw new Error('이미 시작된 게임이에요');
+      await update(rr,{[`players/${uid}/name`]:name});
+    }
+  }
+  code=cc;cfg={};
+  off=onValue(rr,s=>{S=s.val();render()});
+}
+
+function render(){
+  if(!code)return;
+  if(!S){app.replaceChildren(h('div',{class:'card'},'방이 사라졌어요.'),h('button',{class:'btn',onclick:home},'처음으로'));return}
+  const night=S.phase==='night';sky.className=night?'night':'day';document.body.className=night?'night':'';
+  const host=S.host===uid;
+  app.replaceChildren(h('div',{class:'card'},h('div',{class:'mut'},'방 코드'),h('div',{class:'code'},code)),...(host?hostView():stuView()),h('button',{class:'btn',onclick:home},'나가기'));
+}
+
+const logCard=()=>h('div',{class:'card'},h('h2',{},'기록'),[...LG()].reverse().slice(0,8).map(l=>h('div',{class:'row'},l)));
+const step=(label,k,v,n)=>h('div',{class:'step'},label,h('span',{},h('button',{onclick:()=>{cfg[k]=Math.max(0,v-1);render()}},'−'),` ${v} `,h('button',{onclick:()=>{cfg[k]=v+1;render()}},'+')));
+
+function hostView(){
+  const ids=Object.keys(PL()),ph=S.phase,out=[];
+  if(ph==='lobby'){
+    const n=ids.length,[m,p,d]=cv(n),ok=n>=4&&m>=1&&m+p+d<n&&m<n-m;
+    out.push(h('button',{class:'btn'+(S.locked?' sel':''),onclick:()=>ups({locked:S.locked?null:true})},S.locked?'🔒 입장 잠김 (눌러서 해제)':'🔓 입장 허용 중 (눌러서 잠그기)'),h('div',{class:'card'},h('h2',{},`참가자 ${n}명`),ids.map(i=>h('div',{class:'row'},nm(i),h('button',{class:'mini',onclick:()=>kick(i)},'내보내기')))),
+      h('div',{class:'card'},h('h2',{},'직업 구성'),step('마피아','m',m),step('경찰','p',p),step('의사','d',d),h('div',{class:'mut'},`시민 ${Math.max(0,n-m-p-d)}명 · 인원에 맞춰 자동 추천값이에요`)),
+      h('button',{class:'btn pri',disabled:ok?null:'',onclick:start},ok?'게임 시작':'4명 이상, 직업 수를 맞춰주세요'));
+  }else{
+    const night=ph==='night';
+    out.push(h('div',{class:'card'},h('h2',{},`교사 화면 · ${S.day}일차 ${ph==='end'?'종료':night?'🌙 밤':'☀️ 낮'}`),
+      Object.keys(RL()).map(i=>{const pl=PL()[i]||{},a=night?pl.act:pl.vote;
+        return h('div',{class:'row'},h('span',{class:alive(i)?'':'dead'},nm(i)),h('span',{},ROLE[RL()[i]]+(alive(i)?(a&&ph!=='end'?' ✓':''):` 👻${pl.side?(pl.side==='M'?'마':'시'):''}`)+' ',ph!=='end'?h('button',{class:'mini',onclick:()=>toggleDead(i)},alive(i)?'제외':'복귀'):null,' ',ph!=='end'?h('button',{class:'mini',onclick:()=>kick(i)},'퇴장'):null))}),
+      h('div',{class:'mut'},'✓ = 선택 완료 · 👻 옆 글자는 유령이 고른 편(마/시)')));
+    if(ph==='night')out.push(h('button',{class:'btn pri',onclick:endNight},'☀️ 아침으로 (밤 결과 공개)'));
+    if(ph==='day')out.push(h('button',{class:'btn pri',onclick:endDay},'🌙 투표 마감하고 밤으로'));
+    if(ph==='end')out.push(endCard(),h('button',{class:'btn pri',onclick:reset},'새 게임 (대기실로)'));
+    out.push(logCard());
+    if(ph!=='end')out.push(h('button',{class:'btn',onclick:()=>confirm('게임을 중단하고 대기실로 돌아갈까요?')&&reset()},'게임 중단 (대기실로)'));
+  }
+  return out;
+}
+
+function endCard(){
+  const w=S.winner;
+  return h('div',{class:'card'},h('h2',{},w==='M'?'🔪 마피아 승리!':'🎉 시민 승리!'),
+    Object.keys(RL()).map(i=>{const pl=PL()[i]||{};
+      const spy=!alive(i)&&pl.side?` · 유령 첩자(${pl.side==='M'?'마피아':'시민'} 편) ${pl.side===w?'승':'패'}`:'';
+      return h('div',{class:'row'},h('span',{class:alive(i)?'':'dead'},nm(i)),ROLE[RL()[i]]+spy)}));
+}
+
+function stuView(){
+  const me=PL()[uid],ph=S.phase;
+  if(!me)return [h('div',{class:'card'},'이 방의 참가자가 아니에요.')];
+  if(ph==='lobby')return [h('div',{class:'card'},h('h2',{},`참가자 ${Object.keys(PL()).length}명`),Object.keys(PL()).map(i=>h('div',{class:'row'},nm(i)+(i===uid?' (나)':''))),h('p',{class:'mut'},'진행자가 시작하기를 기다리는 중…'))];
+  const r=RL()[uid];
+  if(!r)return [h('div',{class:'card'},'다음 판을 기다려주세요.')];
+  const out=[],al=alive(uid);
+  if(ph==='end'){out.push(endCard(),logCard());return out}
+  const card=h('div',{class:'role',onpointerdown:e=>{reveal=true;render()},oncontextmenu:e=>e.preventDefault()},reveal?`${ROLE[r]}${al?'':' (유령)'}`:'꾹 눌러서 내 직업 보기');
+  out.push(h('div',{class:'card'},h('div',{class:'mut'},`${S.day}일차 · ${ph==='night'?'🌙 밤':'☀️ 낮'}`),card,reveal?h('div',{class:'mut'},DESC[r]):null));
+  out.push(al?(ph==='night'?nightCard(me,r):dayCard(me)):ghostCard(me,ph==='night'));
+  out.push(logCard());
+  return out;
+}
+const pick=(list,sel,fn)=>list.map(i=>h('button',{class:'btn'+(sel===i?' sel':''),onclick:()=>fn(i)},nm(i)+(sel===i?' ✓':'')));
+const others=()=>Object.keys(RL()).filter(i=>alive(i)&&i!==uid);
+
+function nightCard(me,r){
+  const c=h('div',{class:'card'});
+  if(r==='C'){c.append(h('p',{},'밤이에요. 화면을 끄고 조용히 기다리세요 😴'));return c}
+  if(r==='M'){
+    c.append(h('h2',{},'제거할 사람'));
+    if(S.day===1)c.append(h('p',{class:'mut'},'첫날 밤에는 아무도 제거할 수 없어요. 동료가 누구인지 확인해 두세요.'));
+    else c.append(...pick(others().filter(i=>RL()[i]!=='M'),me.act,i=>act('act',i)));
+    const mates=Object.keys(RL()).filter(i=>i!==uid&&RL()[i]==='M');
+    c.append(h('p',{class:'mut'},'동료: '+(mates.map(i=>nm(i)+(alive(i)?'':'(유령)')).join(', ')||'없음')));
+  }
+  if(r==='P'){
+    c.append(h('h2',{},'조사할 사람'),...pick(others(),me.act,i=>act('act',i)));
+    if(me.act)c.append(h('p',{class:'role'},`${nm(me.act)}: ${RL()[me.act]==='M'?'마피아 🔪':'마피아 아님'}`));
+  }
+  if(r==='D')c.append(h('h2',{},'보호할 사람'),...pick(Object.keys(RL()).filter(alive),me.act,i=>act('act',i)));
+  return c;
+}
+function dayCard(me){
+  const c=h('div',{class:'card'},h('h2',{},'토론 후 투표하세요'));
+  if(S.phase==='day'&&me.dos&&RL()[uid]==='P')c.append(h('div',{class:'mut'},'조사 기록: '+Object.values(me.dos).map(i=>`${nm(i)} ${RL()[i]==='M'?'마피아':'아님'}`).join(', ')));
+  c.append(...pick(others(),me.vote,i=>act('vote',i)));
+  return c;
+}
+function ghostCard(me,night){
+  const c=h('div',{class:'card'});
+  if(!me.side){
+    c.append(h('h2',{},'유령이 되었어요 👻'),h('p',{class:'mut'},'편을 고르세요. 다른 사람에게는 비밀이고, 진짜 편과 달라도 돼요. 낮에는 진행자가 지목하면 말할 수 있어요.'),
+      h('button',{class:'btn',onclick:()=>act('side','M')},'마피아 편'),h('button',{class:'btn',onclick:()=>act('side','C')},'시민 편'));
+    return c;
+  }
+  const pk=Object.keys(me.peek||{});
+  c.append(h('h2',{},'유령 첩자'),h('p',{class:'mut'},`내 편: ${me.side==='M'?'마피아':'시민'} (비밀)`));
+  if(night){
+    c.append(h('p',{},'정체를 엿볼 사람을 최대 2명 고르세요.'),...others().map(i=>h('button',{class:'btn'+(pk.includes(i)?' sel':''),onclick:()=>pk.includes(i)?act('peek/'+i,null):(pk.length<2&&act('peek/'+i,true))},nm(i))));
+  }
+  pk.forEach(i=>c.append(h('div',{class:'row'},nm(i),ROLE[RL()[i]])));
+  return c;
+}
+
+const win=dead=>{const al=Object.keys(RL()).filter(i=>!dead[i]),m=al.filter(i=>RL()[i]==='M').length;return !m?'C':m>=al.length-m?'M':null};
+async function start(){
+  const ids=Object.keys(PL()).sort(()=>Math.random()-.5),n=ids.length,c=cv(n),roles={};let k=0;
+  ['M','P','D'].forEach((r,ri)=>{for(let j=0;j<c[ri];j++)roles[ids[k++]]=r});
+  while(k<n)roles[ids[k++]]='C';
+  const o={phase:'night',day:1,roles,dead:null,winner:null,log:['1일차 밤이 되었습니다. 첫날 밤에는 아무도 희생되지 않아요.']};
+  ids.forEach(i=>['act','vote','peek','dos','side'].forEach(f=>o[`players/${i}/${f}`]=null));
+  await ups(o);
+}
+async function endNight(){
+  const dead={...DD()},kills=new Set(),saves=new Set(),o={};
+  Object.keys(RL()).filter(alive).forEach(i=>{const a=(PL()[i]||{}).act;if(!a)return;
+    if(RL()[i]==='M')kills.add(a);if(RL()[i]==='D')saves.add(a);if(RL()[i]==='P')o[`players/${i}/dos/${S.day}`]=a});
+  const died=[];
+  if(S.day>1)kills.forEach(t=>{if(!dead[t]&&!saves.has(t)){dead[t]=true;died.push(t)}});
+  const t=S.day===1?'첫날 밤은 평화로웠습니다.':died.length?`밤사이 ${died.map(nm).join(', ')}님이 희생되었습니다.`:kills.size?'마피아가 공격했지만 아무도 희생되지 않았습니다!':'조용한 밤이었습니다.';
+  const w=win(dead),log=[...LG(),t];if(w)log.push('게임 종료!');
+  Object.keys(PL()).forEach(i=>o[`players/${i}/vote`]=null);
+  await ups({...o,dead:Object.keys(dead).length?dead:null,log,phase:w?'end':'day',winner:w});
+}
+async function endDay(){
+  const cnt={};Object.keys(RL()).filter(alive).forEach(i=>{const v=(PL()[i]||{}).vote;if(v&&alive(v))cnt[v]=(cnt[v]||0)+1});
+  const e=Object.entries(cnt).sort((a,b)=>b[1]-a[1]),dead={...DD()};let t;
+  if(!e.length||(e[1]&&e[1][1]===e[0][1]))t='동점이거나 투표가 없어 아무도 처형되지 않았습니다.';
+  else{dead[e[0][0]]=true;t=`${nm(e[0][0])}님이 처형되었습니다. 정체는 ${ROLE[RL()[e[0][0]]]}!`}
+  const w=win(dead),log=[...LG(),t];log.push(w?'게임 종료!':`${S.day+1}일차 밤이 되었습니다.`);
+  const o={};Object.keys(PL()).forEach(i=>['act','vote','peek'].forEach(f=>o[`players/${i}/${f}`]=null));
+  await ups({...o,dead,log,phase:w?'end':'night',day:w?S.day:S.day+1,winner:w});
+}
+async function kick(i){
+  if(!confirm(`${nm(i)}님을 내보낼까요?`))return;
+  await ups({[`players/${i}`]:null,[`roles/${i}`]:null,[`dead/${i}`]:null});
+}
+async function toggleDead(i){
+  const d={...DD()};if(d[i])delete d[i];else d[i]=true;
+  await ups({dead:Object.keys(d).length?d:null});
+}
+async function reset(){
+  const o={phase:'lobby',day:0,roles:null,dead:null,winner:null,log:null};
+  Object.keys(PL()).forEach(i=>['act','vote','peek','dos','side'].forEach(f=>o[`players/${i}/${f}`]=null));
+  cfg={};await ups(o);
+}
+</script></body></html>
