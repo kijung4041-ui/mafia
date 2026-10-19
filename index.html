@@ -47,12 +47,13 @@ summary{font-weight:700;font-size:16px;padding:4px 0}
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {getDatabase,ref,onValue,set,update,get} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
+// ▼ Firebase 콘솔에서 복사한 설정값을 여기에 붙여 넣으세요 (databaseURL 필수)
 const FB={apiKey:"AIzaSyBZd8ut2vxELmfjlZJeMism6zcv7CGrV0g",authDomain:"mafia-6a946.firebaseapp.com",databaseURL:"https://mafia-6a946-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"mafia-6a946",appId:"1:699764847443:web:bb914ab03a6b6d484be7a6"};
 
 const ROLE={M:'마피아',P:'경찰',D:'의사',C:'시민'};
 const DESC={M:'밤마다 제거할 사람을 고르세요. 동료와 상의할 수 없어요.',P:'밤마다 한 명을 조사해 마피아인지 알아내요.',D:'밤마다 한 명을 지켜요. 자신도 고를 수 있어요.',C:'낮 토론과 투표로 마피아를 찾아내요.'};
 const app=document.getElementById('app'),sky=document.getElementById('sky');
-const h=(t,a,...c)=>{const e=document.createElement(t);for(const k in a||{}){k==='onclick'?e.onclick=a[k]:k==='class'?e.className=a[k]:e.setAttribute(k,a[k])}e.append(...c.flat().filter(x=>x!=null&&x!==false));return e};
+const h=(t,a,...c)=>{const e=document.createElement(t);for(const k in a||{}){if(a[k]==null)continue;k==='onclick'?e.onclick=a[k]:k==='class'?e.className=a[k]:e.setAttribute(k,a[k])}e.append(...c.flat().filter(x=>x!=null&&x!==false));return e};
 let db,uid,code='',S=null,off=null,reveal=false,cfg={};
 try{uid=localStorage.getItem('mv-uid');if(!uid){uid=Math.random().toString(36).slice(2,10)+Date.now().toString(36);localStorage.setItem('mv-uid',uid)}}catch(e){uid=uid||Math.random().toString(36).slice(2,12)}
 
